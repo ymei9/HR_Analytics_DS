@@ -1,0 +1,68 @@
+---
+title: "810 Decision Tree"
+author: "Yuxuan Mei (U98454532)"
+date: "10/6/2021"
+output: html_document
+---
+
+```{r}
+library(data.table)
+library(ggplot2)
+library(ggthemes)
+library(scales)
+library(rpart)
+library(rpart.plot)
+theme_set(theme_bw())
+```
+
+
+```{r}
+dd <- fread("cleaned_data_810_10_06.csv")
+```
+
+```{r}
+# split train test data
+dd[, test:=0]
+dd[sample(nrow(dd), 4000), test:=1]
+dd.train <- dd[test==0, c(1:12)]
+dd.test <- dd[test==1, c(1:12)]
+
+x1.train <- model.matrix(f1, dd.train)[, -1]
+y.train <- dd.train$target
+
+dd.test[, target:=1] 
+x1.test <- model.matrix(f1, dd.test)[, -1]
+y.test <- dd.test$target
+```
+
+```{r}
+# create formula
+f1 <- as.formula(target ~ city_development_index + gender + 
+                   relevent_experience + enrolled_university	+ 
+                   education_level	+ major_discipline	+ 
+                   experience	+ company_size	+ 
+                   company_type	+ last_new_job	+training_hours)
+```
+
+
+```{r}
+fit.tree <- rpart(f1, dd.train, control = rpart.control(cp = 0.001))
+
+```
+```{r}
+rpart.plot(fit.tree, type = 1)
+```
+```{r}
+# mse train and mse test
+ypred.train <- predict(fit.tree, dd.train)
+mse.train <- mean((ypred.tree - y.train) ^ 2)
+
+ypred.test <- predict(fit.tree, dd.test)
+mse.test <- mean((ypred.test - y.test) ^ 2)
+```
+
+```{r}
+# Hyperparameters tuning
+
+```
+
