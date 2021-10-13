@@ -1,0 +1,924 @@
+---
+title: "BA 810 Project Final Version"
+author: "Team 6: Ji Qi, Yuxuan Mei, Yihan Jia, Yuhan Wang, Mochi Zhang"
+date: "9/27/2021"
+output: html_document
+---
+# Features
+`enrollee_id` : Unique ID for candidate
+
+`city`: City code
+
+`city_development_index` : Developement index of the city (scaled)
+
+`gender`: Gender of candidate
+
+`relevent_experience`: Relevant experience of candidate
+
+`enrolled_university`: Type of University course enrolled if any
+
+`education_level`: Education level of candidate
+
+`major_discipline` :Education major discipline of candidate
+
+`experience`: Candidate total experience in years
+
+`company_size`: No of employees in current employer's company
+
+`company_type` : Type of current employer
+
+`lastnewjob`: Difference in years between previous job and current job
+
+`training_hours`: training hours completed
+
+`target`: 0 – Not looking for job change, 1 – Looking for a job change
+
+# Load the dataset
+```{r}
+library(data.table)
+library(ggplot2)
+dd <- fread('./aug_train.csv')
+str(dd)
+```
+
+# Information of the dataset
+```{r}
+# how many rows and columns
+dim(dd)
+
+# basic stats
+summary(dd)
+
+```
+
+# Summary of the missing values
+
+```{r}
+sum(dd == '')
+
+check_missing <- function(x) {  
+  sum(is.null(x) | x == '')}
+a <- data.frame(sapply(dd, check_missing))
+setDT(a, keep.rownames = TRUE)[]
+colnames(a) <- c ('variable_name', 'the_count_of_missing_values')
+
+a[the_count_of_missing_values > 0][order(-the_count_of_missing_values)]
+
+```
+
+
+
+# Summary of notnull values
+
+```{r}
+check_notnull <- function(x) {  
+  sum(x != '')}
+b <- setDT(data.frame(sapply(dd, check_notnull)),  keep.rownames = TRUE)
+colnames((b))
+b[,.(rn,(sapply.dd..check_notnull.))] [order(V2)]
+```
+
+# Specific info of each column
+```{r}
+for (i in colnames(dd))
+{
+print(unique(dd[, i, with = FALSE]))
+}
+
+for (i in colnames(dd))
+{
+print((dd[, .N, by = i ]))
+}
+
+```
+# Fill the missing data
+
+company_type	6140			
+company_size	5938			
+gender	4508			
+major_discipline	2813			
+education_level	460			
+last_new_job	423			
+enrolled_university	386	
+experience	65
+```{r}
+# company_type	6140, fill with the mode value
+company_type_mode <- dd[, max(.N), by = company_type][V1 == max(V1),company_type]
+dd_cleaned <- dd[(company_type == ''), company_type := company_type_mode]
+print((dd_cleaned[, .N, by = company_type]))
+
+
+# company_size 5938, fill with the mode value
+
+dd_cleaned <- dd[(company_size == '10/49'), company_size := '10-49' ]
+company_size_mode <-dd[company_size != '', max(.N), by = company_size][V1 == max(V1),company_size]
+dd_cleaned <- dd[(company_size == ''), company_size := company_size_mode]
+print((dd_cleaned[, .N, by = company_size]))
+
+
+# gender	4508, classified these unknown gender as other
+
+dd_cleaned <- dd[gender == '', gender := 'Other' ]
+print((dd_cleaned[, .N, by = gender]))
+
+
+# major_discipline	2813, fill with the mode value
+major_discipline__mode <-dd[major_discipline != '', max(.N), by = major_discipline][V1 == max(V1),major_discipline]
+dd_cleaned <- dd[(major_discipline == ''), major_discipline := major_discipline__mode]
+print((dd_cleaned[, .N, by = major_discipline]))
+
+
+# education_level	460, fill with the "Primary School"
+dd_cleaned <- dd[(education_level == ''), education_level :=  'Primary School']
+print((dd_cleaned[, .N, by = education_level]))
+
+
+# last_new_job	423	, fill with the mode value
+last_new_job_mode <-dd[last_new_job != '', max(.N), by = last_new_job][V1 == max(V1),last_new_job]
+dd_cleaned <- dd[(last_new_job == ''), last_new_job := last_new_job_mode]
+print((dd_cleaned[, .N, by = last_new_job]))
+
+
+# enrolled_university	386	
+enrolled_university_mode <-dd[enrolled_university!= '', max(.N), by = enrolled_university][V1 == max(V1),enrolled_university]
+dd_cleaned <- dd[(enrolled_university == ''),enrolled_university := enrolled_university_mode]
+print((dd_cleaned[, .N, by = enrolled_university]))
+```
+
+
+```{r}
+# experience	65, classified NA as '<1', fill with the mode value
+dd_cleaned[experience == '', experience := NA]
+
+experience__mode <-dd[experience != '', max(.N), by = experience][V1 == max(V1),experience]
+
+dd_cleaned[is.na(experience) , experience := experience__mode]
+
+dd_cleaned[(experience == '>20'), experience := 21]
+
+dd_cleaned[(experience == '<1'), experience := 0]
+
+# change the datatype of experience into numeric 
+dd_cleaned[ , experience := as.numeric(experience)]
+
+print((dd_cleaned[, .N, by = experience]))
+```
+
+```{r}
+# Drop 'enrollee_id', 'city' columns
+dd_cleaned[ , c('enrollee_id', 'city') := NULL]
+```
+
+```{r}
+# Change the categorical variables into dummy variables
+
+install.packages('fastDummies', repos= 'https://github.com/jacobkap/fastDummies.git')
+library(fastDummies)
+results <- fastDummies::dummy_cols(dd_cleaned, remove_first_dummy = TRUE)
+
+library(data.table)
+
+setnames(results, "relevent_experience_No relevent experience", "relevent_experience_No_relevent_experience")
+setnames(results, "enrolled_university_Part time course", "enrolled_university_Part_time_course")
+setnames(results, "education_level_High School", "education_level_High_School")
+setnames(results, "education_level_Primary School", "education_level_Primary_School")
+setnames(results, "company_size_10-49", "company_size_10_49")
+setnames(results, "company_size_50-99", "company_size_50_99")
+setnames(results, "company_type_Funded Startup", "company_type_Funded_Startup")
+
+setnames(results, "company_size_100-500", "company_size_100_500")
+setnames(results, "company_size_500-999", "company_size_500_999")
+setnames(results, "company_size_1000-4999", "company_size_1000_4999")
+setnames(results, "company_size_5000-9999", "company_size_5000_9999")
+setnames(results, "company_type_Pvt Ltd", "company_type_Pvt_Ltd")
+setnames(results, 'company_type_Public Sector', "company_type_Public_Sector")
+setnames(results, 'major_discipline_No Major', "major_discipline_No_Major")
+setnames(results, 'major_discipline_Business Degree', "major_discipline_Business_Degree")
+setnames(results, 'company_size_10000+', "company_size_10000")
+
+
+
+
+
+```
+
+```{r}
+write.csv(results, "~/cleaned_data_810_10_06.csv", row.names = FALSE)
+```
+
+
+# Exploratory Data Analysis
+```{r}
+theme_Ji <- theme_bw()+  
+  theme(
+    plot.title=element_text(hjust=0.5, vjust=0.5, face='bold.italic'),
+    axis.text.x = element_text(face="bold", color="#993333", 
+                               size=10, angle=0),
+    axis.text.y = element_text(face="bold", color="#993333", 
+                               size=10, angle=0),
+    axis.title.x = element_text(color="black", size=14, face="bold"),
+    axis.title.y = element_text(color="black", size=14, face="bold")
+  )
+
+theme_set(theme_Ji)
+
+```
+
+
+## Target Column Histogram
+
+0 - Not looking for job change
+1 – Looking for a job change
+
+This dataset is imbalanced and the ratio of '0 - Not looking for job change' to '1 – Looking for a job change' is equal to 3 : 1
+
+```{r}
+
+# target column
+target <- results[, target]
+target <- data.table(target)
+
+
+ggplot(results, aes(x = as.factor(target), fill = as.factor(target)))+
+  geom_bar(stat = 'count', width = 0.5, position = 'dodge')+
+  labs(x='target value', y = 'count')+
+  ggtitle("Target Histogram") +
+  geom_text(stat='count', aes(label=..count..), position = position_dodge(width = .5), vjust=-.1, size = 5, color = 'brown')+
+  scale_fill_hue(name="target")+
+  theme(
+    plot.title=element_text(hjust=0.5, vjust=0.5, face='bold')
+  )
+
+
+
+```
+
+## Gender Column Histogram
+Female Data Scientists are more likely looking for a new job in comparison with other genders.
+```{r}
+gender <- results[, gender]
+gender <- data.table(gender)
+
+
+ggplot(results, aes(x = as.factor(gender), fill = as.factor(target)))+
+  geom_bar(stat = 'count', width = 0.5, position = 'stack')+
+  labs(x='gender', y = 'count')+
+  ggtitle("Gender Histogram") +
+  geom_text(stat='count', aes(label=scales::percent(..count../tapply(..count.., ..x.. ,sum)[..x..])), position = position_stack(vjust = 1.03) ,size = 4, color = 'black', check_overlap = TRUE)+
+  scale_fill_hue(name="target")+
+  theme(
+    plot.title=element_text(hjust=0.5, vjust=0.5, face='bold')
+  )
+
+
+
+```
+## Relative Experience Column Histogram
+Data Scientists without relevant experience have higher chances of leaving a Job 
+
+```{r}
+relevent_experience <- results[, relevent_experience]
+relevent_experience <- data.table(relevent_experience)
+
+
+ggplot(results, aes(x = as.factor(relevent_experience), fill = as.factor(target)))+
+  geom_bar(stat = 'count', width = 0.5, position = 'stack')+
+  labs(x='relevant_experience', y = 'count')+
+  ggtitle("Relevant_Experience Histogram") +
+  geom_text(stat='count', aes(label=scales::percent(..count../tapply(..count.., ..x.. ,sum)[..x..])), position = position_stack(vjust = 1.03) ,size = 4, color = 'black', check_overlap = TRUE)+
+  scale_fill_hue(name="target")+
+  theme(
+    plot.title=element_text(hjust=0.5, vjust=0.5, face='bold')
+  )
+
+```
+## City_Development_Index Boxplot
+Candidates are going to look for a new job, since the city where they live has a lower city_development_index.
+```{r}
+
+ggplot(results, aes(x=as.factor(target), y=city_development_index, fill = as.factor(target))) +
+  geom_boxplot()+
+  labs(x='target', y = 'city_development_index')+
+  scale_fill_hue(name="target")+
+  ggtitle("City_Development_Index Boxplot") +
+theme(legend.position="right", plot.title=element_text(hjust=0.5, vjust=0.5, face='bold'))
+
+
+
+```
+
+## Training Hours Violinplot
+
+The data points of training hours are mainly located between 0 and 100 hours. No relationship between training hours and willingness to change their jobs
+```{r}
+ggplot(results, aes(x=as.factor(target), y=training_hours, fill = as.factor(target))) +
+  geom_violin(trim=FALSE) +
+  labs(x='target', y = 'training_hours')+
+  stat_summary(fun.y=mean, geom="point", shape=23, size=2)+
+  geom_boxplot(width=0.1)+
+  scale_fill_hue(name="target")+
+  ggtitle("Training Hours Violinplot")+ 
+  theme(plot.title=element_text(hjust=0.5, vjust=0.5, face='bold'))
+```
+
+## Experience Violinplot
+
+Most Data Scientists with less than 5 years' experience are likely to resign their jobs
+Candidates with more than 10 years' experience prefer to continue to work in the same company.
+
+```{r}
+
+ggplot(results, aes(x=as.factor(target), y=experience, fill = as.factor(target))) +
+  geom_violin(trim=FALSE) +
+  labs(x='target', y = 'experience')+
+  stat_summary(fun.y=mean, geom="point", shape=23, size=2)+
+  geom_boxplot(width=0.1)+
+  scale_fill_hue(name="target")+
+  ggtitle("Experience Violinplot")+ 
+  theme(plot.title=element_text(hjust=0.5, vjust=0.5, face='bold'))
+
+```
+
+## Education_level Histogram
+28 % of People with bachelor's degrees are more likely to stay in the company. This percentage is higher than that in other education level groups.
+```{r}
+
+ggplot(results, aes(x = as.factor(education_level ), fill = as.factor(target)))+
+  geom_bar(stat = 'count', width = 0.5, position = 'dodge')+
+  labs(x='education_level', y = 'count')+
+  ggtitle("Education_level  Histogram") +
+  geom_text(stat='count', aes(label=scales::percent(..count../tapply(..count.., ..x.. ,sum)[..x..])), position = position_dodge(width = 0.7) , vjust=-.01, hjust= 0.4,size = 4, color = 'black', check_overlap = TRUE)+
+  scale_fill_hue(name="target")+
+  theme(
+    plot.title=element_text(hjust=0.5, vjust=0.5, face='bold')
+  )
+```
+
+
+## Company Size Pie Chart
+For the company size about 50 - 99, people are willing to leave their jobs.
+```{r}
+
+
+com_size <- results[target == 1, .N, by = company_size]
+com_size[, prop := .(scales :: percent(N/sum(N))),]
+
+ggplot(com_size, aes(x = "", y = N, fill = company_size)) +
+  geom_bar(width = 1, stat = "identity", color = "white") +
+  coord_polar("y", start = 0)+
+  geom_text(aes(x = 1.6, label = prop), color = "black", position = position_stack(vjust = .5))+
+  ggtitle("Company Size Pie Chart, Target = 1") +
+  theme(
+    plot.title=element_text(hjust=-5, vjust=0.5, face='bold')
+  )+
+  theme_void()
+
+
+com_size <- results[target == 0, .N, by = company_size]
+com_size[, prop := .(scales :: percent(N/sum(N))),]
+
+ggplot(com_size, aes(x = "", y = N, fill = company_size)) +
+  geom_bar(width = 1, stat = "identity", color = "white") +
+  coord_polar("y")+
+  geom_text(aes(x = 1.6, label = prop), color = "black", position = position_stack(vjust = 0.5))+
+  ggtitle("Company Size Pie Chart, Target = 0") +
+  theme(
+    plot.title=element_text(hjust=0.5, vjust=0.5, face='bold')
+  )+
+  theme_void()
+```
+
+
+## Last_New_Job Pie Chart
+people whose last job was more than 4 years ago are willing to stay in the current company
+```{r}
+
+com_size <- results[target == 1, .N, by = last_new_job]
+com_size[, prop := .(scales :: percent(N/sum(N))),]
+
+ggplot(com_size, aes(x = "", y = N, fill = last_new_job)) +
+  geom_bar(width = 1, stat = "identity", color = "white") +
+  coord_polar("y", start = 0)+
+  geom_text(aes(x = 1.6, label = prop), color = "black", position = position_stack(vjust = .5))+
+  ggtitle("Last_New_Job Pie Chart, Target = 1") +
+  theme(
+    plot.title=element_text(hjust=-5, vjust=0.5, face='bold')
+  )+
+  theme_void()
+
+
+com_size <- results[target == 0, .N, by = last_new_job]
+com_size[, prop := .(scales :: percent(N/sum(N))),]
+
+ggplot(com_size, aes(x = "", y = N, fill = last_new_job)) +
+  geom_bar(width = 1, stat = "identity", color = "white") +
+  coord_polar("y", start = 0)+
+  geom_text(aes(x = 1.6, label = prop), color = "black", position = position_stack(vjust = .5))+
+  ggtitle("Last_New_Job Pie Chart, Target = 0") +
+  theme(
+    plot.title=element_text(hjust=-5, vjust=0.5, face='bold')
+  )+
+  theme_void()
+
+
+```
+
+# Logistic regression (Generalized Linear Model)
+
+## Train and test datasets
+```{r}
+logistic_data <- results[, c(1, 7, 11:43)]
+
+# Total number of rows in the credit data frame
+n <- nrow(results)
+
+# Number of rows for the training set (70% of the dataset)
+n_train <- round(0.7 * n) 
+
+# Create a vector of indices which is an 70% random sample
+set.seed(123)
+train_indices <- sample(1:n, n_train)
+
+# Subset the credit data frame to training indices only
+logistic_data_train <- logistic_data[train_indices, ]  
+  
+# Exclude the training indices to create the test set
+logistic_data_test <- logistic_data[-train_indices, ]  
+```
+
+
+## Model 1 summary
+summary(model)$coef
+coef(model)
+
+It can be seen that only 15 out of the 34 predictors are significantly associated to the outcome. These include: city index, experience, training hours and so on.
+
+The coefficient estimate of the variable company_size_50_99 is b = 0.8950371, which is positive. The positive coefficient for this predictor suggests that all other variables being equal, the people from company size (50-99) is less likely to stay. However the coefficient for the variable city_development_index is b = -5.7581439, which is negative. This means that an increase in city_development_index will be associated with a decreased probability of leaving the company.
+```{r}
+install.packages('caret', repos = 'https://github.com/topepo/caret/')
+library(caret)
+library(data.table)
+ctrl <- trainControl(method = "repeatedcv", number = 10, savePredictions = TRUE)
+
+mod_fit <- train(as.factor(target) ~ ., data = logistic_data_train,method="glm", family="binomial",
+                 trControl = ctrl, tuneLength = 5)
+summary(mod_fit)
+```
+
+### calculate MSE
+0.1587713
+
+```{r}
+mod_fit_mse <- train(target ~ ., data = logistic_data_train,method="glm", family="binomial",
+                 trControl = ctrl, tuneLength = 5)
+```
+
+```{r}
+probabilities_mse = predict(mod_fit_mse, newdata=logistic_data_test)
+head(probabilities_mse)
+```
+
+
+```{r}
+mean((logistic_data_test$target - probabilities_mse)^2)
+```
+
+### Predict the probabilities of looking for a new job
+```{r}
+mod_fit <- train(as.factor(target)~ ., data = logistic_data_train,method="glm", family="binomial",
+                 trControl = ctrl, tuneLength = 5)
+```
+
+```{r}
+probabilities = predict(mod_fit, newdata=logistic_data_test)
+head(probabilities)
+```
+
+
+
+### Confusion Matrix and Statistics
+Low sensitivity and High Specificity
+many false negative results, and thus more cases of candidates who leaving a job are missed
+```{r}
+# The diagonal elements of the confusion matrix indicate correct predictions, while the off-diagonals represent incorrect predictions.
+confusionMatrix(data=probabilities, as.factor(logistic_data_test$target), positive='1' )
+
+```
+### Assessing model accuracy
+
+76.75% of the observations have been correctly predicted.
+```{r}
+mean(probabilities == logistic_data_test$target) # model accuracy
+mean(probabilities != logistic_data_test$target) #test set error rate
+
+```
+
+
+### Varible Importance
+From the logistic regression results, it shows that some variables - gender_male and Major_discipline_No_Major - are not statistically significant. Keeping them in the model may lead to overfitting. Therefore, they should be eliminated.
+
+We plan to use variable importance function to select the top 10 most important features and train the model again.
+```{r}
+library(data.table)
+var_imp <- varImp(mod_fit)
+var_imp <- setDT(data.frame(var_imp[1]), rownames(TRUE))
+var_imp[1:10][order(-Overall)]
+```
+
+
+
+
+
+
+
+## Model 2 summary
+summary(model)$coef
+coef(model)
+```{r}
+ctrl_2 <- trainControl(method = "repeatedcv", number = 10, savePredictions = TRUE)
+
+mod_fit_2 <- train(as.factor(target) ~ city_development_index + experience + training_hours + relevent_experience_No_relevent_experience + enrolled_university_no_enrollment + enrolled_university_Part_time_course + education_level_High_School + education_level_Masters + gender_Male+gender_Other, data = logistic_data_train,method="glm", family="binomial",
+                 trControl = ctrl_2, tuneLength = 5)
+summary(mod_fit_2)
+
+```
+
+
+### calculate MSE
+0.1587713
+
+```{r}
+mod_fit_mse_2 <- train(target ~ city_development_index + experience + training_hours + relevent_experience_No_relevent_experience + enrolled_university_no_enrollment + enrolled_university_Part_time_course + education_level_High_School + education_level_Masters + gender_Male+gender_Other, data = logistic_data_train,method="glm", family="binomial",
+                 trControl = ctrl, tuneLength = 5)
+```
+
+```{r}
+probabilities_mse_2 = predict(mod_fit_mse, newdata=logistic_data_test)
+head(probabilities_mse_2)
+```
+
+
+```{r}
+mean((logistic_data_test$target - probabilities_mse_2)^2)
+```
+
+
+
+### Predict the probabilities_2 of looking for a new job
+```{r}
+probabilities_2 <- predict(mod_fit_2, logistic_data_test)
+head(probabilities_2)
+
+```
+
+
+### Confusion Matrix and Statistics
+
+10 important features from variable important function.
+
+10 fold Cross Validation.
+
+Low sensitivity and High Specificity.
+
+many false negative results, and thus more cases of candidates who leaving a job are missed.
+
+Sensitivity is better than the last model without feature selection.
+
+
+```{r}
+
+confusionMatrix(data=probabilities_2, as.factor(logistic_data_test$target),positive='1' )
+
+```
+
+### Assessing model accuracy
+
+The Accuracy of model is 0.7679 > 0.7675.
+
+76.75% of the observations have been correctly predicted.
+
+```{r}
+mean(probabilities_2== logistic_data_test$target) # model accuracy
+
+mean(probabilities_2 != logistic_data_test$target) #test set error rate
+```
+
+
+### ROC for 2 logistic regression models
+AUC (area under the ROC curve) which are typical performance measurements for a binary classifier.
+As a rule of thumb, a model with good predictive ability should have an AUC closer to 1 (1 is ideal) than to 0.5.
+Logistic regression model without feature selections has a slightly better performance.
+
+MSE_test for both : 0.1587713
+
+
+
+```{r}
+library(pROC)
+par(pty = 's')
+roc(logistic_data_test$target, as.numeric(probabilities), plot = TRUE, legacy.axes = TRUE, ylab = "True Positive Rate", xlab = "False Positive Rate", col = "#377eb8", lwd = 3, print.auc = TRUE)
+
+roc(logistic_data_test$target, as.numeric(probabilities_2), plot = TRUE, legacy.axes = TRUE, ylab = "True Positive Rate", xlab = "False Positive Rate", col = "#4daf4a", lwd = 2, print.auc = TRUE, add = TRUE, print.auc.y = 0.4)
+
+legend("bottomright", legend=c("Logisitic Regression", "Logisitic Regression w/ varimp"), col=c("#377eb8", "#4daf4a"), lwd=5)
+```
+
+
+
+# Lasso Linear Regression
+
+10-fold Cross Validation 
+
+Tune a hyperparameter (lambda) : 76 times,   lambda that minimizes training MSE is 0.0009059394
+
+MSE_test = 0.1591651
+
+It can be seen that only 9 out of the 34 predictors are significantly associated to the outcome. These include: city index, experience, training hours and company size_50_99.
+
+Company_Size_50_99 (0.100476835) → the people from company size (50-99) is less likely to stay.
+
+City_Development_Index (city_development_index)  → a decreased probability of leaving the company.
+
+
+## Train and test datasets
+```{r}
+
+lasso_data_x <- model.matrix( ~ -1 + city_development_index+experience+training_hours+gender_Male+gender_Other+relevent_experience_No_relevent_experience+enrolled_university_no_enrollment+enrolled_university_Part_time_course+education_level_High_School+education_level_Masters+education_level_Phd+education_level_Primary_School+major_discipline_Business_Degree+major_discipline_Humanities+major_discipline_No_Major+major_discipline_Other+major_discipline_STEM+company_size_10_49+company_size_50_99+company_size_100_500+company_size_500_999+company_size_1000_4999+company_size_5000_9999+company_size_10000+company_type_Funded_Startup+company_type_NGO+company_type_Other+company_type_Public_Sector+company_type_Pvt_Ltd+last_new_job_1+last_new_job_2+last_new_job_3+last_new_job_4+last_new_job_never, results)
+
+lasso_data_y <- results$target
+
+# Total number of rows in the credit data frame
+n <- nrow(results)
+
+# Number of rows for the training set (70% of the dataset)
+n_train <- round(0.7 * n) 
+
+# Create a vector of indices which is an 70% random sample
+set.seed(123)
+train_indices <- sample(1:n, n_train)
+
+# Subset the credit data frame to training indices only
+x_train <- lasso_data_x[train_indices, ] 
+y_train <- lasso_data_y[train_indices] 
+  
+# Exclude the training indices to create the test set
+x_test <- lasso_data_x[-train_indices, ]  
+y_test <- lasso_data_y[-train_indices] 
+  
+
+```
+
+
+
+## Fits 100 different Lasso regressions for 100 decreasing values of 
+```{r}
+library(glmnet)
+fit.lasso <- cv.glmnet(x_train, y_train, alpha = 1, nfolds = 10)
+fit.lasso$lambda
+```
+
+
+### Predict the results
+```{r}
+yhat.train.lasso <- predict(fit.lasso, x_train, s = fit.lasso$lambda.min)  # Select lambda that minimizes validation MSE
+yhat.test.lasso <- predict(fit.lasso, x_test, s = fit.lasso$lambda.min) 
+
+
+yhat.train.lasso_all <- predict(fit.lasso, x_train, s = fit.lasso$lambda)  
+yhat.test.lasso_all <- predict(fit.lasso, x_test, s = fit.lasso$lambda) 
+```
+
+
+### Compute train MSEs
+```{r}
+mse_train <- colMeans((yhat.train.lasso_all - y_train) ** 2)
+mse_test <- colMeans((yhat.train.lasso_all - y_test) ** 2)
+
+mse.train.lasso <- mean((y_train - yhat.train.lasso)^2)
+mse.test.lasso <- mean((y_test - yhat.test.lasso)^2)
+```
+
+### Aggregate all MSEs
+```{r}
+dd_mse <- data.table(
+  lambda = fit.lasso$lambda,
+  mse = mse_train,
+  dataset = "Train",
+  is_min = mse_train == min(mse_train)
+)
+dd_mse <- rbind(dd_mse, data.table(
+  lambda = fit.lasso$lambda,
+  mse = mse_test,
+  dataset = "Test",
+  is_min = mse_test == min(mse_test)
+))
+```
+
+### Plot the MSE with lambda
+```{r}
+ggplot(dd_mse, aes(lambda, mse, color=dataset)) +
+  geom_line() +
+  geom_point(data=dd_mse[is_min==TRUE]) +
+  scale_y_continuous("MSE") +
+  scale_x_reverse("Flexibility")
+```
+
+### Compute test MSE:
+```{r}
+print(mse.test.lasso)
+```
+
+### Summary of the lasso linear regression
+```{r}
+coef(fit.lasso)
+```
+
+# Randomforest
+## Preparation
+
+```{r}
+data <- read.csv("cleaned_data_810_10_06.csv")
+data$target <- factor(data$target)
+data$gender <- factor(data$gender)
+data$relevent_experience <- factor(data$relevent_experience)
+data$enrolled_university <- factor(data$enrolled_university)
+data$education_level <- factor(data$education_level)
+data$major_discipline <- factor(data$major_discipline)
+data$experience <- factor(data$experience)
+data$company_size <- factor(data$company_size)
+data$company_type <- factor(data$company_type)
+data$last_new_job <- factor(data$last_new_job)
+```
+
+##set train and test
+```{r}
+set.seed(123)
+test_size <- floor(0.3*nrow(data))
+sam <- sample(nrow(data), test_size, replace = FALSE)
+train <- data[-sam, 1:12]
+test <- data[sam, 1:12]
+```
+
+##set the model
+```{r}
+library(randomForest)
+model <- randomForest(target~., data = train, importance = TRUE)
+print(model)
+```
+
+##predict and accuracy
+```{r}
+pred <- predict(model, test[, 1:11])
+table(test=test[, 12], predict = pred)
+accuracy <- mean(test[, 12] == pred)
+print(accuracy)
+```
+
+##variable importance
+```{r}
+varImpPlot(model)
+library(ggplot2)
+library(dplyr)
+importance <-  importance(model)
+varImportance <-  data.frame(Variables = row.names(importance),
+                           Importance =round(importance[, "MeanDecreaseAccuracy"],2))
+rankImportance <- varImportance %>%
+  mutate(Rank=paste('#',dense_rank(desc(Importance))))
+                     
+ggplot(rankImportance,aes(x=reorder(Variables,Importance),
+                          y=Importance,fill=Importance)) + 
+  geom_bar(stat='identity') + 
+  geom_text(aes(x = Variables, y = 0.5, label = Rank),
+            hjust=0, vjust=0.55, size = 4, colour = 'red') +
+  labs(x = 'Variables') +
+  coord_flip() + 
+  theme_classic()
+```
+# Decision Tree
+```{r}
+library(data.table)
+library(rpart)
+library(rpart.plot)
+dd <- fread("cleaned_data_810_10_06.csv")
+```
+## create formula
+```{r}
+f1 <- as.formula(target ~ city_development_index + gender + 
+                   relevent_experience + enrolled_university	+ 
+                   education_level	+ major_discipline	+ 
+                   experience	+ company_size	+ 
+                   company_type	+ last_new_job	+training_hours)
+```
+## split train test data
+```{r}
+dd[, test:=0]
+dd[sample(nrow(dd), 4000), test:=1]
+dd.train <- dd[test==0, c(1:12)]
+dd.test <- dd[test==1, c(1:12)]
+
+x1.train <- model.matrix(f1, dd.train)[, -1]
+y.train <- dd.train$target
+
+dd.test[, target:=1] 
+x1.test <- model.matrix(f1, dd.test)[, -1]
+y.test <- dd.test$target
+```
+
+## fit the tree
+```{r}
+fit.tree <- rpart(f1, dd.train, control = rpart.control(cp = 0.005))
+```
+```{r}
+rpart.plot(fit.tree, type = 1)
+```
+### calculate mse train and mse test
+```{r}
+ypred.train <- predict(fit.tree, dd.train)
+mse.train <- mean((ypred.train - y.train) ^ 2)
+
+ypred.test <- predict(fit.tree, dd.test)
+mse.test <- mean((ypred.test - y.test) ^ 2)
+```
+
+### Feature importance
+```{r}
+df <- data.frame(Feature_Importance = fit.tree$variable.importance)
+df
+```
+
+# Boosting tree
+```{r}
+install.packages(c("gbm"), repos= 'https://github.com/gbm-developers/gbm.git')
+library(ggthemes)
+library(scales)
+library(gbm)
+
+```
+## Load and split data
+
+```{r}
+dd_gbm <- fread("cleaned_data_810_10_06.csv", stringsAsFactors = T)
+dd_gbm[, test:=0]
+dd_gbm[sample(nrow(dd), 4000), test:=1]
+dd_gbm.train <- dd_gbm[test==0, c(1:12)]
+dd_gbm.test <- dd_gbm[test==1, c(1:12)]
+
+x1gbm.train <- model.matrix(f1, dd_gbm.train)[, -1]
+ygbm.train <- dd_gbm.train$target
+
+dd_gbm.test[, target:=1] 
+x1gbm.test <- model.matrix(f1, dd_gbm.test)[, -1]
+ygbm.test <- dd_gbm.test$target
+```
+
+## Fit the tree
+```{r}
+
+fit_gbm <- gbm(f1, data = dd_gbm.train,
+                 distribution = "gaussian",
+                 n.trees = 100,
+                 interaction.depth = 2, 
+                 shrinkage = 0.005)
+```
+
+### Get relative feature influence
+```{r}
+relative.influence(fit_gbm)
+df2 <- data.frame(Relative_Influence = relative.influence(fit_gbm))
+df2
+```
+
+### Calculate MSE train
+```{r}
+yhat.gbm <- predict(fit_gbm, dd_gbm.train, n.trees = 100)
+mse.gbm_train <- mean((yhat.gbm - ygbm.train) ^ 2)
+print(mse.gbm_train)
+
+```
+
+### Calculate MSE test
+```{r}
+
+yhat.gbm_test <- predict(fit_gbm, dd_gbm.test, n.trees = 100)
+mse.gbm_test <- mean((yhat.gbm_test - ygbm.test) ^ 2)
+print(mse.gbm_test)
+```
+
+
+#Conclusion
+Top factors for employees leaving:
+Employees in less developed cities
+Employees in size 50-99 companies
+Employees with relevant experience
+
+
+Irrelevant factors:
+Training hours
+Major (Field of study)
+
+If a 50-99 company in less developed cities and wants to retain their employees, it needs to consider provide them with some incentives or bonus. In addition, more team building is a good way to bond the current employees.
+
+
+
+
+
